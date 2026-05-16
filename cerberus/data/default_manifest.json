@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "release": "0.1.0",
+  "zenodo_doi": "PENDING_FIRST_RELEASE",
+  "notes": "URLs and SHA256 values are populated after the first Zenodo deposition.",
+  "assets": {
+    "masked_t2t_hla_minimap2": {
+      "description": "minimap2 index of T2T-CHM13v2.0 + IPD-IMGT/HLA, masked against UHGG bacterial and RefSeq viral pan-genomes.",
+      "filename": "masked_t2t_hla.mmi",
+      "url": "PENDING",
+      "sha256": "PENDING",
+      "size_bytes": null,
+      "required_for": ["meta", "profiling-fast"]
+    },
+    "masked_t2t_hla_bowtie2": {
+      "description": "bowtie2 index of the masked T2T-CHM13v2.0 + IPD-IMGT/HLA reference (6 .bt2 files in a tar).",
+      "filename": "masked_t2t_hla_bt2.tar.zst",
+      "url": "PENDING",
+      "sha256": "PENDING",
+      "size_bytes": null,
+      "required_for": ["profiling"]
+    },
+    "kraken2_gdpr_compact": {
+      "description": "Compact Kraken2 database covering human, great apes, mouse, and rat for GDPR-pass scrubbing.",
+      "filename": "kraken2_gdpr_compact.tar.zst",
+      "url": "PENDING",
+      "sha256": "PENDING",
+      "size_bytes": null,
+      "required_for": ["gdpr"]
+    },
+    "aux_refs": {
+      "description": "Auxiliary k-mer references: human rRNA (Ensembl 113), mtDNA, low-copy repeats, transcript decoys.",
+      "filename": "aux_refs.fa.gz",
+      "url": "PENDING",
+      "sha256": "PENDING",
+      "size_bytes": null,
+      "required_for": ["profiling"]
+    },
+    "human_kmer_set": {
+      "description": "Human-specific 27-mer set for GDPR belt-and-braces bbduk scrub (orthogonal to Kraken2).",
+      "filename": "human_k27.fa.gz",
+      "url": "PENDING",
+      "sha256": "PENDING",
+      "size_bytes": null,
+      "required_for": ["gdpr"]
+    }
+  }
+}

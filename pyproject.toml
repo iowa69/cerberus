@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cerberus-mg"
+version = "0.1.0"
+description = "Three-headed host-removal pipeline for metagenomic data: assembly, profiling, and GDPR-compliant outputs from one run."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Cerberus contributors" }]
+keywords = ["metagenomics", "host-removal", "decontamination", "kraken2", "minimap2", "bioinformatics"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "tqdm>=4.66",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6"]
+
+[project.scripts]
+cerberus = "cerberus.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/iowa69/cerberus"
+Issues = "https://github.com/iowa69/cerberus/issues"
+
+[tool.setuptools.packages.find]
+include = ["cerberus*"]
+
+[tool.setuptools.package-data]
+cerberus = ["data/*.json", "data/*.yaml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
