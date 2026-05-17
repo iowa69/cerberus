@@ -16,7 +16,7 @@ log() { printf '\033[36m[%s]\033[0m %s\n' "$(date +%H:%M:%S)" "$*"; }
 
 # ----- 1. Build taxonomy -----
 log "Downloading Kraken2 taxonomy"
-kraken2-build --download-taxonomy --threads "$THREADS" --db "$OUT"
+kraken2-build --download-taxonomy --use-ftp --threads "$THREADS" --db "$OUT"
 
 # ----- 2. Add reference genomes -----
 log "Adding human (T2T-CHM13v2.0)"
