@@ -1,48 +1,66 @@
 {
   "schema_version": 1,
   "release": "0.1.0",
-  "zenodo_doi": "PENDING_FIRST_RELEASE",
-  "notes": "URLs and SHA256 values are populated after the first Zenodo deposition.",
+  "zenodo_doi": "10.5281/zenodo.20258069",
+  "notes": "Published to Zenodo (record 20258069). URLs and SHA256/MD5 sums verified.",
   "assets": {
     "masked_t2t_hla_minimap2": {
       "description": "minimap2 index of T2T-CHM13v2.0 + IPD-IMGT/HLA, masked against UHGG bacterial and RefSeq viral pan-genomes.",
       "filename": "masked_t2t_hla.mmi",
-      "url": "PENDING",
-      "sha256": "PENDING",
-      "size_bytes": null,
-      "required_for": ["meta", "profiling-fast"]
+      "url": "https://zenodo.org/records/20258069/files/masked_t2t_hla.mmi",
+      "sha256": "97f2a79966d40c4529e107cfd4b13de9304fb5b9eb1205a949d8e47227312e06",
+      "size_bytes": 7697109690,
+      "required_for": [
+        "meta",
+        "profiling-fast"
+      ],
+      "md5": "cac6b1815c07eb66cc2c91534147a4bc"
     },
     "masked_t2t_hla_bowtie2": {
       "description": "bowtie2 index of the masked T2T-CHM13v2.0 + IPD-IMGT/HLA reference (6 .bt2 files in a tar).",
       "filename": "masked_t2t_hla_bt2.tar.zst",
-      "url": "PENDING",
-      "sha256": "PENDING",
-      "size_bytes": null,
-      "required_for": ["profiling"]
+      "url": "https://zenodo.org/records/20258069/files/masked_t2t_hla_bt2.tar.zst",
+      "sha256": "ca5131def0ca85201e57d6792c0673b37e56452a04fe24781e639d7c52286dcf",
+      "size_bytes": 3792410500,
+      "required_for": [
+        "profiling"
+      ],
+      "md5": "a0cce58d8b82a4c957dca839590e3157"
     },
     "kraken2_gdpr_compact": {
       "description": "Compact Kraken2 database covering human, great apes, mouse, and rat for GDPR-pass scrubbing.",
       "filename": "kraken2_gdpr_compact.tar.zst",
-      "url": "PENDING",
-      "sha256": "PENDING",
-      "size_bytes": null,
-      "required_for": ["gdpr"]
+      "url": "https://zenodo.org/records/20258069/files/kraken2_gdpr_compact.tar.zst",
+      "sha256": "ea34849a0f35d3cc5e7008c2f16ac0c8c6abd86848712d1f320bb138484a2ba2",
+      "size_bytes": 11048814212,
+      "required_for": [
+        "gdpr"
+      ],
+      "md5": "3f7c25e243201d18b7404b6995e4b7de"
     },
     "aux_refs": {
       "description": "Auxiliary k-mer references: human rRNA (Ensembl 113), mtDNA, low-copy repeats, transcript decoys.",
       "filename": "aux_refs.fa.gz",
-      "url": "PENDING",
-      "sha256": "PENDING",
-      "size_bytes": null,
-      "required_for": ["profiling"]
+      "url": "https://zenodo.org/records/20258069/files/aux_refs.fa.gz",
+      "sha256": "3fbd352eb36ed094ec97a452be209b34b7dba803bf42066076b842a0de33fed6",
+      "size_bytes": 331131,
+      "required_for": [
+        "profiling"
+      ],
+      "md5": "8002d13881ad9569005f330147b6c5df"
     },
     "human_kmer_set": {
       "description": "Human-specific 27-mer set for GDPR belt-and-braces bbduk scrub (orthogonal to Kraken2).",
       "filename": "human_k27.fa.gz",
-      "url": "PENDING",
-      "sha256": "PENDING",
-      "size_bytes": null,
-      "required_for": ["gdpr"]
+      "url": "https://zenodo.org/records/20258069/files/human_k27.fa.gz",
+      "sha256": "a2f8b712a1958a41b590ce67743c324d64462e17b6b4fdc62747ff4de4b09c75",
+      "size_bytes": 932696125,
+      "required_for": [
+        "gdpr"
+      ],
+      "md5": "9280657210e4161147cbe13b022225b9"
     }
-  }
+  },
+  "zenodo_concept_doi": "10.5281/zenodo.20258068",
+  "zenodo_record_url": "https://zenodo.org/record/20258069"
 }
