@@ -49,7 +49,8 @@ log "Masking repeats with bbmask (entropy + tandem)"
 ENTROPY_MASKED="$WORK/t2t_hla.masked.fa"
 if [ ! -f "$ENTROPY_MASKED" ]; then
   bbmask.sh in="$COMBINED" out="$ENTROPY_MASKED" \
-    entropy=0.7 window=80 maskrepeats=t mintandem=10 \
+    entropy=0.7 window=80 \
+    maskrepeats=t kr=5 minlen=40 mincount=4 \
     threads="$THREADS" -Xmx12g
 fi
 
