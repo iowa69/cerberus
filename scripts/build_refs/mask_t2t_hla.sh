@@ -22,7 +22,7 @@ WORK="${WORK:-$OUT/_work}"
 mkdir -p "$OUT" "$WORK"
 
 T2T_URL="https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/009/914/755/GCA_009914755.4_T2T-CHM13v2.0/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna.gz"
-HLA_URL="https://github.com/ANHIG/IMGTHLA/raw/Latest/hla_gen.fasta"
+HLA_URL="https://ftp.ebi.ac.uk/pub/databases/imgt/mhc/hla/hla_gen.fasta"
 VIRUS_URL="https://ftp.ncbi.nlm.nih.gov/refseq/release/viral/viral.1.1.genomic.fna.gz"
 
 log() { printf '\033[36m[%s]\033[0m %s\n' "$(date +%H:%M:%S)" "$*"; }
