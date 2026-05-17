@@ -111,6 +111,9 @@ log "Computing SHA256 and manifest fragment"
   echo "}"
 } > "$OUT/manifest_fragment.json"
 
+log "Cleaning up transient work directory ($(du -sh "$WORK" | cut -f1))"
+rm -rf "$WORK"
+
 log "Done. Outputs:"
 ls -lh "$OUT"
 log "Manifest fragment: $OUT/manifest_fragment.json"
