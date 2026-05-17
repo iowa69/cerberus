@@ -37,6 +37,8 @@ requirements:
     - multiqc >=1.25
     - chopper >=0.9
     - winnowmap >=2.03
+    - bedtools >=2.31
+    - zstd >=1.5
 
 test:
   imports:
