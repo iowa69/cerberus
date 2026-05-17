@@ -28,11 +28,11 @@ if [ ! -f "$TEST_DIR/mix.R1.fq.gz" ]; then
   randomreads.sh ref="$BUILD/masked_t2t_hla/_work/t2t.fa.gz" \
     out1="$TEST_DIR/human.R1.fq.gz" out2="$TEST_DIR/human.R2.fq.gz" \
     reads=3000 length=150 paired=t illuminanames=t \
-    -Xmx2g 2>/dev/null || \
+    -Xmx16g 2>/dev/null || \
   randomreads.sh ref="$REF_DIR/human_k27.fa.gz" \
     out1="$TEST_DIR/human.R1.fq.gz" out2="$TEST_DIR/human.R2.fq.gz" \
     reads=3000 length=150 paired=t illuminanames=t \
-    -Xmx2g
+    -Xmx16g
 
   # 3000 paired viral reads — use RefSeq viral as a stand-in for "microbial"
   if [ -f "$BUILD/masked_t2t_hla/_work/virus.fa.gz" ]; then
@@ -47,7 +47,7 @@ if [ ! -f "$TEST_DIR/mix.R1.fq.gz" ]; then
   randomreads.sh ref="$VIRUS_REF" \
     out1="$TEST_DIR/virus.R1.fq.gz" out2="$TEST_DIR/virus.R2.fq.gz" \
     reads=3000 length=150 paired=t illuminanames=t \
-    -Xmx2g
+    -Xmx16g
 
   log "Combining into mix (50:50 human:viral)"
   cat "$TEST_DIR/human.R1.fq.gz" "$TEST_DIR/virus.R1.fq.gz" > "$TEST_DIR/mix.R1.fq.gz"

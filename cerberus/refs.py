@@ -38,10 +38,10 @@ _PIPELINE_TO_ASSETS = {
     "meta":           ["masked_t2t_hla_minimap2"],
     "profiling":      ["masked_t2t_hla_minimap2", "masked_t2t_hla_bowtie2", "aux_refs"],
     "profiling-fast": ["masked_t2t_hla_minimap2"],
-    "gdpr":           ["kraken2_gdpr_compact", "human_kmer_set"],
+    "gdpr":           ["kraken2_gdpr_compact", "masked_t2t_hla_minimap2"],
     "long-meta":      ["masked_t2t_hla_minimap2"],
     "long-profiling": ["masked_t2t_hla_minimap2", "aux_refs"],
-    "long-gdpr":      ["kraken2_gdpr_compact", "human_kmer_set"],
+    "long-gdpr":      ["kraken2_gdpr_compact", "masked_t2t_hla_minimap2"],
 }
 
 

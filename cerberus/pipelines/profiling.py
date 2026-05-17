@@ -155,7 +155,13 @@ def run_profiling(
 
 
 def _bowtie2_prefix(bt2_dir: Path) -> Path:
-    """Find the bowtie2 index prefix inside the extracted directory."""
-    for p in bt2_dir.glob("*.1.bt2*"):
+    """Find the bowtie2 index prefix inside the extracted directory (recursive).
+
+    Skips files containing ".rev." in the name — those are the auxiliary
+    reverse-index files, not the primary prefix carrier.
+    """
+    for p in bt2_dir.rglob("*.1.bt2*"):
+        if ".rev." in p.name:
+            continue
         return p.with_suffix("").with_suffix("")  # strip .1.bt2 / .1.bt2l
     raise FileNotFoundError(f"No bowtie2 index found in {bt2_dir}")

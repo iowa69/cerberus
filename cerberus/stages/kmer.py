@@ -19,6 +19,22 @@ class BBDukKmerOutputs:
     contaminated: Path | None
 
 
+def _empty_paired_passthrough(
+    workdir: Path, tag: str, r1_in: Path, r2_in: Path,
+) -> BBDukKmerOutputs:
+    """If kraken2 produced no surviving reads, write empty gzipped outputs
+    so the rest of the pipeline still has files to chain."""
+    out_r1 = workdir / f"{tag}.kmerclean.R1.fq.gz"
+    out_r2 = workdir / f"{tag}.kmerclean.R2.fq.gz"
+    stats = workdir / f"{tag}.bbduk_kmer.stats.txt"
+    import gzip
+    for p in (out_r1, out_r2):
+        with gzip.open(p, "wb") as f:
+            f.write(b"")
+    stats.write_text(f"# bbduk skipped: input {r1_in.name} was empty\n")
+    return BBDukKmerOutputs(r1=out_r1, r2=out_r2, stats=stats, contaminated=None)
+
+
 def bbduk_kmer_paired(
     cfg: CerberusConfig,
     tuned: TunedParams,
@@ -32,6 +48,10 @@ def bbduk_kmer_paired(
 ) -> BBDukKmerOutputs:
     require_tools("bbduk.sh")
     workdir.mkdir(parents=True, exist_ok=True)
+
+    if not r1_in.exists() or r1_in.stat().st_size <= 40:
+        log.warning("Skipping bbduk %s — input is empty/near-empty (%s)", tag, r1_in)
+        return _empty_paired_passthrough(workdir, tag, r1_in, r2_in)
 
     out_r1 = workdir / f"{tag}.kmerclean.R1.fq.gz"
     out_r2 = workdir / f"{tag}.kmerclean.R2.fq.gz"
@@ -70,6 +90,16 @@ def bbduk_kmer_single(
 ) -> BBDukKmerOutputs:
     require_tools("bbduk.sh")
     workdir.mkdir(parents=True, exist_ok=True)
+
+    if not reads_in.exists() or reads_in.stat().st_size <= 40:
+        log.warning("Skipping bbduk %s — input is empty/near-empty (%s)", tag, reads_in)
+        out = workdir / f"{tag}.kmerclean.fq.gz"
+        stats = workdir / f"{tag}.bbduk_kmer.stats.txt"
+        import gzip
+        with gzip.open(out, "wb") as f:
+            f.write(b"")
+        stats.write_text(f"# bbduk skipped: input {reads_in.name} was empty\n")
+        return BBDukKmerOutputs(r1=out, r2=None, stats=stats, contaminated=None)
 
     out = workdir / f"{tag}.kmerclean.fq.gz"
     matched = workdir / f"{tag}.host_kmer.fq.gz" if cfg.keep_intermediates else None
