@@ -6,8 +6,8 @@ package:
   version: {{ version }}
 
 source:
-  url: https://github.com/iowa69/cerberus/archive/v{{ version }}.tar.gz
-  sha256: PLACEHOLDER_FILLED_AT_RELEASE
+  url: https://github.com/iowa69/cerberus/archive/refs/tags/v{{ version }}.tar.gz
+  sha256: 2728b50ef145fe564fbd9c94b968a4afd1e0d39e97e9b2a6a566afc22c687c07
 
 build:
   number: 0
