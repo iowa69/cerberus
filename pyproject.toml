@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cerberus-mg"
-version = "0.1.0"
+version = "0.1.1"
 description = "Three-headed host-removal pipeline for metagenomic data: assembly, profiling, and GDPR-compliant outputs from one run."
 readme = "README.md"
 requires-python = ">=3.10"
