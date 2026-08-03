@@ -44,7 +44,7 @@ jobs:
       - name: Install toolchain
         run: |
           conda install -y -c conda-forge -c bioconda \
-            python=3.11 fastp minimap2 bowtie2 bbmap kraken2 samtools pigz
+            python=3.11 fastp fastplong minimap2 bowtie2 bbmap kraken2 samtools pigz
           pip install -e ".[dev]"
       - name: Build fixture and run end-to-end
         run: bash scripts/smoke_test.sh
