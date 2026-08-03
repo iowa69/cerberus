@@ -10,7 +10,6 @@ so re-runs continue where they left off.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import sys

@@ -8,7 +8,7 @@ Cerberus is an opinionated, all-in-one host-decontamination pipeline that produc
 |---|---|---|
 | **meta** | `<sample>.meta.R1.fastq.gz` + `R2` + orphans | Assembly (SPAdes, MEGAHIT). Conservative — retains microbial reads even at the cost of some residual host. |
 | **profiling** | `<sample>.profiling.fastq.gz` | Taxonomic profiling (Kraken2, Bracken). Aggressive — single merged FASTQ, host removed hard. |
-| **gdpr** | `<sample>.<mode>.*_GDPR.fastq.gz` | Public release. **Zero detectable human reads** via dual orthogonal mechanisms (Kraken2 + minimap2). |
+| **gdpr** | `<sample>.<mode>*_GDPR.fastq.gz` | Public release. Host removed by **three mechanisms in series** (Kraken2 + human k-mers + minimap2), with the residual measured and reported. See [What the GDPR head does and does not guarantee](#what-the-gdpr-head-does-and-does-not-guarantee). |
 
 Works on **Illumina paired-end short reads**, **ONT long reads**, **PacBio HiFi**, and **PacBio CLR**. Autotunes its parameters from the data — you do not need to know the read length, platform, or sensible thresholds.
 
@@ -35,7 +35,7 @@ cerberus -r1 R1.fq.gz -r2 R2.fq.gz -o out/ -t 8 --all
 cerberus --long -i reads.fq.gz -o out/ -t 8 --all
 ```
 
-First run downloads the reference bundle (~22 GB, one time) from Zenodo into `~/.cerberus/refs/`. Pre-warm with `cerberus fetch-refs`; validate the installation with `cerberus doctor`.
+First run downloads the reference bundle (~23 GB compressed, ~24 GB on disk after extraction; archives are deleted once extracted) from Zenodo into `~/.cerberus/refs/`. Pre-warm with `cerberus fetch-refs`; validate the installation with `cerberus doctor`.
 
 ---
 
@@ -71,7 +71,9 @@ fastp / fastplong  ──→  autotune (read-length & platform)
                           → *_GDPR.fastq.gz
 ```
 
-**Why two mechanisms for GDPR?** Kraken2 alone has false negatives at the read level (it's a minimizer-based classifier optimized for taxonomy, not exclusion). Combining it with an independent alignment pass — against the same masked T2T+HLA used in the other heads — is what makes the output publication-defensible: a read survives only if both a k-mer classifier and an aligner agree it isn't host.
+**Why three mechanisms for GDPR?** Kraken2 alone has false negatives at the read level (it is a minimizer-based classifier optimised for taxonomy, not exclusion). Cerberus follows it with a bbduk pass against a human k-mer reference and then an independent alignment pass, so a read survives only if all three agree it is not host.
+
+Note that the GDPR Kraken2 database contains **host taxa only**. Every classification is therefore a hit on the thing being removed, and a high `--confidence` simply lets host reads escape as "unclassified". The default is deliberately low (`--gdpr-confidence 0.05`); raise it only if you are knowingly trading host removal for retained microbial signal.
 
 ---
 
@@ -172,7 +174,6 @@ cerberus -r1 R1.fq.gz -r2 R2.fq.gz -o out/ --all \
 | File | Built by | Used for |
 |---|---|---|
 | `masked_t2t_hla.mmi` | `minimap2 -x sr -d` | `--meta`, `--profiling --fast` (short reads) |
-| `masked_t2t_hla.long.mmi` | `minimap2 -d` (default preset) | `--long` modes |
 | `masked_t2t_hla_bt2/...` | `bowtie2-build` | `--profiling` standard path |
 | `manifest.json` | (generated) | makes `RefManager` skip the download/verify step |
 
@@ -226,11 +227,56 @@ cerberus --help-all            # full help with advanced flags
 
 | Resource | Need |
 |---|---|
-| RAM (peak) | ~9 GB on `--gdpr` step (Kraken2). 4-6 GB during alignment. |
-| Disk (refs) | ~13 GB extracted in `~/.cerberus/refs/` (one-time). |
-| Disk (run) | ~2× input FASTQ size during processing; cleaned automatically unless `--keep-intermediates`. |
+| RAM (peak) | ~14 GB on the `--gdpr` step (Kraken2 loads the whole database). 4-6 GB during alignment. `--memory` is honoured by bbduk and is detected from cgroup limits, so it is correct inside containers. |
+| Disk (refs) | ~24 GB in `~/.cerberus/refs/` (one-time). Downloaded archives are removed after extraction; set `CERBERUS_KEEP_ARCHIVES=1` to retain them. |
+| Disk (run) | Intermediates in `out/_work/` can reach **10-15× the input FASTQ size** while running (Kraken2 writes uncompressed FASTQ). They are deleted when the run finishes unless `--keep-intermediates` is set. Size `out/` accordingly. |
 
 Designed for 16 GB laptops. Tested on 4-core/16 GB.
+
+---
+
+## Review
+
+v0.2.0 is the result of a ten-pass review of v0.1.1 that found and fixed
+several defects producing silently wrong scientific output — including two
+filter strategies that compiled to the same filter, and a platform flag that
+emptied the output while exiting 0. The findings, and how each was verified by
+running the pipeline, are in [`docs/review/`](docs/review/) (open
+`index.html`). The fixes are listed in [`CHANGELOG.md`](CHANGELOG.md).
+
+**Results produced with v0.1.x should be regenerated.**
+
+---
+
+## What the GDPR head does and does not guarantee
+
+The `--gdpr` head runs three host-removal mechanisms in series, and a read is
+published only if all three accept it:
+
+| # | Mechanism | Kind | Reference |
+|---|---|---|---|
+| 1 | Kraken2 (`--gdpr-confidence`, default 0.05) | exact k-mer minimizer classifier | compact host DB: human, great apes, mouse, rat |
+| 2 | bbduk against a human k-mer reference | a second, independent k-mer implementation | `human_k27.fa.gz` |
+| 3 | minimap2 alignment, dropping the pair if **either** mate aligns | alignment, not k-mers | masked T2T-CHM13v2.0 + IPD-IMGT/HLA |
+
+**What this does not prove.** All three mechanisms ultimately derive from the
+same reference assemblies. Human sequence that is absent from those assemblies
+is invisible to every one of them — population-specific insertions, V(D)J
+recombination junctions, novel structural variants, and regions removed by the
+bacterial/viral masking applied when the index was built. No combination of
+reference-based filters can establish that a file contains zero human reads.
+
+Cerberus therefore **measures and reports** what each mechanism removed rather
+than asserting a zero. Every run writes `reports/cerberus_report.html` with a
+per-mechanism breakdown; a mechanism that removed nothing is flagged, because
+that usually means it could not act rather than that the sample was clean.
+
+**If you are releasing data publicly**, treat this as one control among
+several: confirm the removal rates in the run report are what you expect for
+your sample type, keep `reports/run_record.json` with the release, and follow
+your institution's own review process. Cerberus reduces host content by orders
+of magnitude; it does not discharge your legal obligations under GDPR or any
+other framework.
 
 ---
 
@@ -242,20 +288,42 @@ out/
 ├── <sample>.meta.R2.fastq.gz
 ├── <sample>.meta.orphans.fastq.gz
 ├── <sample>.profiling.fastq.gz      # if --profiling
-├── <sample>.meta.R1_GDPR.fastq.gz   # if --gdpr (per source mode)
+├── <sample>.meta.R1_GDPR.fastq.gz      # if --gdpr (per source head)
 ├── <sample>.meta.R2_GDPR.fastq.gz
-├── <sample>.profiling.GDPR.fastq.gz
+├── <sample>.meta.orphans_GDPR.fastq.gz
+├── <sample>.profiling.orphans_GDPR.fastq.gz
 ├── reports/
-│   ├── accounting.tsv     # per-stage read counts (reviewer-friendly)
-│   ├── accounting.json    # same, machine-readable
-│   ├── fastp.json/html
-│   └── *.flagstat.txt
+│   ├── cerberus_report.html  # full run report: parameters, per-stage
+│   │                         # accounting, output verification, warnings
+│   ├── run_record.json       # the same, machine-readable, for methods sections
+│   ├── accounting.tsv        # per-stage read counts (reviewer-friendly)
+│   └── accounting.json       # same, machine-readable
 └── logs/
-    └── *.log              # one per stage, plus a JSONL run log
+    └── *.log                 # one per stage, plus a JSONL run log
+
+# --long produces <sample>.long_meta.fastq.gz / <sample>.long_profiling.fastq.gz
+# (and <sample>.long_meta_GDPR.fastq.gz with --gdpr).
 ```
 
 ---
 
 ## Citation
 
-Pre-print pending. For now: `Cerberus (v0.1.1). https://github.com/iowa69/cerberus  DOI: 10.5281/zenodo.20258069`
+Pre-print pending. For now: `Cerberus (v0.2.0). https://github.com/iowa69/cerberus  DOI: 10.5281/zenodo.20258069`
+
+### Reference data provenance
+
+The reference bundle is derived from the following sources. If you publish
+results produced with Cerberus, please cite them as well as Cerberus itself:
+
+| Source | Used for | Reference |
+|---|---|---|
+| T2T-CHM13v2.0 | host genome for the minimap2/bowtie2 indices | Nurk *et al.* (2022) *Science* 376:44-53 |
+| IPD-IMGT/HLA | HLA allele sequences added to the host reference | Barker *et al.* (2023) *Nucleic Acids Res* 51:D1053 |
+| UHGG | bacterial pan-genome used to mask the host reference | Almeida *et al.* (2021) *Nat Biotechnol* 39:105-114 |
+| NCBI RefSeq viral | viral pan-genome used to mask the host reference | O'Leary *et al.* (2016) *Nucleic Acids Res* 44:D733 |
+| Ensembl | human rRNA/ncRNA in the auxiliary k-mer references | Ensembl release 113 |
+| NCBI Taxonomy | taxonomy backbone of the Kraken2 GDPR database | Schoch *et al.* (2020) *Database* baaa062 |
+
+Cerberus itself is MIT-licensed. The reference data retains the licence of its
+upstream sources; check those terms before redistributing the bundle.

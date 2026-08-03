@@ -53,6 +53,7 @@ scripts/build_refs/_work/
 # Logs
 *.log
 logs/
+!docs/**/*.html
 
 # OS
 Thumbs.db

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cerberus-mg"
-version = "0.1.1"
+version = "0.2.0"
 description = "Three-headed host-removal pipeline for metagenomic data: assembly, profiling, and GDPR-compliant outputs from one run."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,7 +24,6 @@ classifiers = [
 ]
 dependencies = [
     "tqdm>=4.66",
-    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -41,7 +40,7 @@ Issues = "https://github.com/iowa69/cerberus/issues"
 include = ["cerberus*"]
 
 [tool.setuptools.package-data]
-cerberus = ["data/*.json", "data/*.yaml"]
+cerberus = ["data/*.json"]
 
 [tool.ruff]
 line-length = 100
@@ -50,3 +49,6 @@ target-version = "py310"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q"
+
+[tool.ruff.lint]
+ignore = ["PERF102"]

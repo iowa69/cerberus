@@ -80,13 +80,16 @@ def test_autotune_short_reads(tmp_path: Path) -> None:
     assert tuned.bbduk_aux_enabled is True
 
 
-def test_autotune_very_short_disables_aux(tmp_path: Path) -> None:
+def test_autotune_very_short_keeps_aux_enabled(tmp_path: Path) -> None:
+    """Very short reads must not silently lose a decontamination stage."""
     json_path = tmp_path / "fastp.json"
     json_path.write_text(json.dumps(_fastp_json(50)))
     tuned = autotune_from_fastp(json_path, user_platform=Platform.AUTO)
     assert tuned.read_length_class is ReadLengthClass.VERY_SHORT
-    assert tuned.bbduk_aux_enabled is False
+    assert tuned.bbduk_aux_enabled is True
     assert tuned.min_length == 35
+    # The entropy window cannot exceed the read length it is measured over.
+    assert tuned.entropy_window <= 50
 
 
 def test_autotune_long_ont(tmp_path: Path) -> None:
@@ -96,7 +99,12 @@ def test_autotune_long_ont(tmp_path: Path) -> None:
     assert tuned.read_length_class is ReadLengthClass.VERY_LONG
     assert tuned.platform is Platform.ONT
     assert tuned.minimap2_preset == "map-ont"
-    assert tuned.winnowmap_enabled is True
+    # winnowmap needs a meryl repetitive-k-mer file that ships with no asset,
+    # so it stays opt-in rather than being enabled by default.
+    assert tuned.winnowmap_enabled is False
+    # bbduk's covered-fraction must drop for high-error long reads, or the
+    # auxiliary k-mer pass can never fire.
+    assert tuned.bbduk_mcf < 0.5
 
 
 def test_autotune_long_hifi_picks_map_hifi(tmp_path: Path) -> None:

@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-
 DEFAULT_REF_DIR = Path.home() / ".cerberus" / "refs"
 DEFAULT_CACHE_DIR = Path.home() / ".cerberus" / "cache"
 
@@ -39,7 +38,9 @@ class TunedParams:
     min_length: int = 50
     min_quality: int = 20
     entropy: float = 0.7
+    entropy_window: int = 50
     bbduk_k: int = 27
+    bbduk_mcf: float = 0.5
     bbduk_aux_enabled: bool = True
     minimap2_preset: str = "sr"
     minimap2_extra: str = ""
@@ -48,14 +49,35 @@ class TunedParams:
     winnowmap_enabled: bool = False
     read_length_class: ReadLengthClass = ReadLengthClass.SHORT
     platform: Platform = Platform.ILLUMINA
+    observed_mean_length: float = 0.0
 
     def summary(self) -> str:
         return (
             f"length-class={self.read_length_class.value} platform={self.platform.value} "
             f"min_len={self.min_length} Q={self.min_quality} entropy={self.entropy} "
-            f"bbduk_k={self.bbduk_k} aux={self.bbduk_aux_enabled} "
+            f"bbduk_k={self.bbduk_k} mcf={self.bbduk_mcf} aux={self.bbduk_aux_enabled} "
             f"mm2={self.minimap2_preset} bt2={self.bowtie2_preset}"
         )
+
+    def as_dict(self) -> dict[str, object]:
+        """Plain-data view for the run report and the machine-readable record."""
+        return {
+            "read_length_class": self.read_length_class.value,
+            "platform": self.platform.value,
+            "observed_mean_length_bp": round(self.observed_mean_length, 1),
+            "min_length": self.min_length,
+            "min_quality": self.min_quality,
+            "entropy": self.entropy,
+            "entropy_window": self.entropy_window,
+            "bbduk_k": self.bbduk_k,
+            "bbduk_mcf": self.bbduk_mcf,
+            "bbduk_aux_enabled": self.bbduk_aux_enabled,
+            "minimap2_preset": self.minimap2_preset,
+            "minimap2_extra": self.minimap2_extra,
+            "bowtie2_preset": self.bowtie2_preset,
+            "bowtie2_extra": self.bowtie2_extra,
+            "winnowmap_enabled": self.winnowmap_enabled,
+        }
 
 
 @dataclass
@@ -100,6 +122,10 @@ class CerberusConfig:
     minimap2_args: str | None = None
     bowtie2_args: str | None = None
 
+    # GDPR scrub tuning
+    gdpr_confidence: float = 0.05
+    gdpr_kmer_scrub: bool = True
+
     # housekeeping
     keep_intermediates: bool = False
     verbose: bool = False
@@ -108,6 +134,8 @@ class CerberusConfig:
 
     # filled in by autotune; never set by user directly
     tuned: TunedParams = field(default_factory=TunedParams)
+    prescan: object | None = None
+    command_line: str = ""
 
     @property
     def modes(self) -> list[str]:

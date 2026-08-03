@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cerberus v0.1.1 — ten-pass review</title><style>
+:root{--bg:#fbfbfd;--fg:#16181d;--muted:#5d6470;--line:#e3e6ec;--card:#fff;
+--ok:#0d7a4a;--warn:#a35a00;--bad:#b3261e;--crit:#8b1a14;--accent:#2b4c9b;--soft:#eef2fb}
+@media(prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e8eaef;--muted:#9aa2b1;
+--line:#2a2e37;--card:#1b1e24;--ok:#4ec98a;--warn:#e0a34a;--bad:#f2857c;--crit:#ff6b5e;
+--accent:#8fb0ff;--soft:#212836}}
+:root[data-theme=dark]{--bg:#14161a;--fg:#e8eaef;--muted:#9aa2b1;--line:#2a2e37;--card:#1b1e24;
+--ok:#4ec98a;--warn:#e0a34a;--bad:#f2857c;--crit:#ff6b5e;--accent:#8fb0ff;--soft:#212836}
+:root[data-theme=light]{--bg:#fbfbfd;--fg:#16181d;--muted:#5d6470;--line:#e3e6ec;--card:#fff;
+--ok:#0d7a4a;--warn:#a35a00;--bad:#b3261e;--crit:#8b1a14;--accent:#2b4c9b;--soft:#eef2fb}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font:15.5px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:34px 20px 80px}
+header{border-bottom:2px solid var(--line);padding-bottom:20px;margin-bottom:26px}
+h1{margin:0 0 8px;font-size:28px;letter-spacing:-.02em;line-height:1.25}
+h2{margin:38px 0 12px;font-size:20px;letter-spacing:-.01em;
+border-left:3px solid var(--accent);padding-left:11px}
+h3{margin:26px 0 8px;font-size:16.5px}
+.sub{color:var(--muted);font-size:14px}
+a{color:var(--accent)}
+.nav{margin:18px 0 0;font-size:14px}
+.nav a{margin-right:14px;white-space:nowrap}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:22px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.card .v{font-size:23px;font-weight:650;margin-top:3px;letter-spacing:-.02em}
+.card.crit .v{color:var(--crit)} .card.high .v{color:var(--bad)}
+.card.medium .v{color:var(--warn)} .card.low .v{color:var(--muted)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;
+background:var(--card);margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--soft);font-weight:650;font-size:12.5px;text-transform:uppercase;
+letter-spacing:.05em;color:var(--muted)}
+tr:last-child td{border-bottom:none}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;
+background:var(--soft);padding:1px 5px;border-radius:4px}
+pre{background:var(--card);border:1px solid var(--line);border-radius:8px;
+padding:13px 16px;overflow-x:auto}
+pre code{background:none;padding:0}
+.pill{display:inline-block;padding:1px 10px;border-radius:999px;font-size:12px;
+font-weight:650;text-transform:uppercase;letter-spacing:.04em}
+.pill.critical{background:rgba(139,26,20,.15);color:var(--crit)}
+.pill.high{background:rgba(179,38,30,.13);color:var(--bad)}
+.pill.medium{background:rgba(163,90,0,.14);color:var(--warn)}
+.pill.low{background:rgba(93,100,112,.15);color:var(--muted)}
+.pill.ok{background:rgba(13,122,74,.13);color:var(--ok)}
+.finding{background:var(--card);border:1px solid var(--line);border-radius:10px;
+padding:16px 18px;margin:14px 0}
+.finding.critical{border-left:4px solid var(--crit)}
+.finding.high{border-left:4px solid var(--bad)}
+.finding.medium{border-left:4px solid var(--warn)}
+.finding.low{border-left:4px solid var(--muted)}
+.finding h3{margin:0 0 10px;font-size:16px;display:flex;gap:10px;align-items:baseline;
+flex-wrap:wrap}
+.finding dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:5px 14px}
+.finding dt{color:var(--muted);font-size:12.5px;text-transform:uppercase;
+letter-spacing:.05em;padding-top:2px}
+.finding dd{margin:0}
+ul.verified{list-style:none;padding:0}
+ul.verified li{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--ok);
+border-radius:8px;padding:10px 14px;margin:8px 0}
+.note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);
+border-radius:8px;padding:13px 17px;margin:14px 0}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
+color:var(--muted);font-size:13px}
+</style></head><body><div class="wrap"><header><h1>Cerberus v0.1.1 — ten-pass review</h1><div class="sub">2026-08-03 &middot; 146 findings across 10 independent passes &middot; every finding verified by running the pipeline</div></header>
+<div class="cards">
+<div class="card crit"><div class="k">critical</div><div class="v">15</div></div>
+<div class="card high"><div class="k">high</div><div class="v">37</div></div>
+<div class="card medium"><div class="k">medium</div><div class="v">60</div></div>
+<div class="card low"><div class="k">low</div><div class="v">34</div></div>
+<div class="card"><div class="k">total</div><div class="v">146</div></div></div>
+
+<div class="note"><strong>How this review was run.</strong> Ten passes examined the
+codebase from ten different angles, each with its own lens and no knowledge of the
+others' conclusions. Findings were then checked against a running pipeline: miniature
+but real references (a minimap2 index, a bowtie2 index, a Kraken2 database and
+auxiliary FASTA, all built from synthetic genomes) let the whole tool execute
+end-to-end on reads whose origin is encoded in their names, so host removal could be
+measured rather than argued about. That step mattered — it corrected an early
+hypothesis about pair desynchronisation, and it confirmed the more serious finding
+underneath it.</div>
+<h2>Passes</h2>
+<div class="tablewrap"><table><thead><tr><th>Pass</th><th>Lens</th><th>Crit</th><th>High</th><th>Med</th><th>Low</th><th>Total</th></tr></thead><tbody><tr><td><a href="pass01.html">Pass 1</a></td><td>Read-filtering semantics</td><td>2</td><td>3</td><td>5</td><td>2</td><td><strong>12</strong></td></tr><tr><td><a href="pass02.html">Pass 2</a></td><td>Subprocess and I/O layer</td><td>1</td><td>4</td><td>5</td><td>4</td><td><strong>14</strong></td></tr><tr><td><a href="pass03.html">Pass 3</a></td><td>Reference manager</td><td>2</td><td>3</td><td>6</td><td>4</td><td><strong>15</strong></td></tr><tr><td><a href="pass04.html">Pass 4</a></td><td>CLI and configuration</td><td></td><td>5</td><td>6</td><td>4</td><td><strong>15</strong></td></tr><tr><td><a href="pass05.html">Pass 5</a></td><td>Autotuning</td><td>2</td><td>4</td><td>8</td><td>4</td><td><strong>18</strong></td></tr><tr><td><a href="pass06.html">Pass 6</a></td><td>Pipeline composition</td><td>3</td><td>4</td><td>3</td><td>3</td><td><strong>13</strong></td></tr><tr><td><a href="pass07.html">Pass 7</a></td><td>Outputs and accounting</td><td>1</td><td>3</td><td>7</td><td>4</td><td><strong>15</strong></td></tr><tr><td><a href="pass08.html">Pass 8</a></td><td>GDPR claim audit</td><td>2</td><td>4</td><td>5</td><td>1</td><td><strong>12</strong></td></tr><tr><td><a href="pass09.html">Pass 9</a></td><td>Documentation and packaging</td><td></td><td>3</td><td>12</td><td>5</td><td><strong>20</strong></td></tr><tr><td><a href="pass10.html">Pass 10</a></td><td>Robustness and resources</td><td>2</td><td>4</td><td>3</td><td>3</td><td><strong>12</strong></td></tr></tbody></table></div>
+
+<h2>The findings that mattered most</h2>
+
+<div class="finding critical"><h3><span class="pill critical">critical</span>
+A long-read preset on paired input silently produced empty output</h3>
+<dl>
+<dt>what</dt><dd>minimap2 only emits paired records under <code>-x sr</code>. With
+<code>--platform ont</code> (or any long-read preset) on <code>-r1/-r2</code>, no record
+carried a READ1 or READ2 flag, so <code>samtools fastq -1/-2</code> wrote nothing.</dd>
+<dt>confirmed by</dt><dd>Running it: both output files held <strong>0 reads</strong> and
+the process exited <strong>0</strong> with no warning.</dd>
+<dt>fixed in v0.2.0</dt><dd>Paired alignment forces a pair-capable preset and warns;
+a stage that consumes reads and emits none now raises a warning that reaches the run
+report.</dd>
+</dl></div>
+
+<div class="finding critical"><h3><span class="pill critical">critical</span>
+The conservative and aggressive filters were the same filter</h3>
+<dl>
+<dt>what</dt><dd><code>drop_strategy</code> compiled to <code>-f 12</code> for "both" and
+<code>-f 4</code> for "either"; combined with <code>-s /dev/null</code> the two selected
+identical reads. <code>--meta</code>, documented as "retains microbial reads even at the
+cost of some residual host", was behaving exactly like the aggressive head.</dd>
+<dt>confirmed by</dt><dd>Feeding 1000 read pairs with one host mate and one microbial
+mate through both paths and comparing outputs byte for byte. The microbial mates were
+being routed to <code>/dev/null</code> as singletons.</dd>
+<dt>fixed in v0.2.0</dt><dd>Pair-level filtering uses a samtools filter expression
+(<code>flag.unmap || flag.munmap</code>) that can actually express the rule. On the same
+input, meta now keeps 500 half-host pairs and profiling drops all 500 — a difference that
+did not previously exist.</dd>
+</dl></div>
+
+<div class="finding critical"><h3><span class="pill critical">critical</span>
+A dead process in a pipe reported success</h3>
+<dl>
+<dt>what</dt><dd><code>pipe()</code> checked only the last process's exit status. An
+OOM-killed <code>minimap2</code> feeding a healthy <code>samtools view</code> produced a
+truncated BAM that passed <code>samtools quickcheck</code>.</dd>
+<dt>confirmed by</dt><dd>Shimming an aligner to exit 137 mid-stream: 502 of 2000 records
+survived and the pipeline reported success.</dd>
+<dt>fixed in v0.2.0</dt><dd>Every stage's status is checked and the failing stage is named
+in the error.</dd>
+</dl></div>
+
+<div class="finding high"><h3><span class="pill high">high</span>
+The GDPR head's advertised third mechanism did not exist, and its first was tuned backwards</h3>
+<dl>
+<dt>what</dt><dd>The manifest described <code>human_kmer_set</code> as a "belt-and-braces
+bbduk scrub, orthogonal to Kraken2", fetched it, and no code read it. Separately, Kraken2
+ran at <code>--confidence 0.5</code> against a database containing <em>only</em> host taxa
+— where a high threshold does not suppress false positives, it simply lets host reads
+escape as "unclassified". Two sequencing errors in a 150 bp read are enough; on ONT data
+at 2-5% error essentially nothing reached the threshold.</dd>
+<dt>fixed in v0.2.0</dt><dd>The k-mer scrub is wired in as a real third mechanism; the
+default confidence is 0.05 and exposed as <code>--gdpr-confidence</code>; and the
+"zero detectable human reads" claim is replaced by measured, reported per-mechanism
+removal, because no reference-based filter can establish absence.</dd>
+</dl></div>
+
+<div class="finding high"><h3><span class="pill high">high</span>
+<code>--dry-run</code> deleted the previous run's results, then crashed</h3>
+<dl>
+<dt>what</dt><dd><code>final.unlink()</code> sat outside the dry-run guard in every
+pipeline, so a dry run removed real outputs before failing with
+<code>FileNotFoundError</code> on a QC report it had never written.</dd>
+<dt>fixed in v0.2.0</dt><dd>Publishing is atomic and never removes a file before its
+replacement exists; dry runs complete cleanly and still produce a report.</dd>
+</dl></div>
+
+
+<h2>What was verified as sound</h2>
+<ul class="verified">
+<li>R1/R2 synchronisation held on every path traced, including the ones initially
+suspected of desynchronising — samtools' singleton routing was protecting them.</li>
+<li>Concatenated gzip members read back as a single stream through every consumer
+tested, including pigz-produced members, so the merged-FASTQ design is sound.</li>
+<li>Secondary and supplementary alignments cannot duplicate reads in the output.</li>
+<li>The reference downloader hashes to a temporary file before renaming, so a corrupt
+download can never land at the final path.</li>
+<li>The conda recipe's declared SHA256 matched the real v0.1.1 GitHub tarball.</li>
+<li>The wheel builds correctly and ships the packaged reference manifest.</li>
+<li>Zenodo helper scripts never log or persist the API token.</li>
+<li>All mode-combination validation errors exited cleanly with code 2.</li>
+</ul>
+
+<h2>Outcome</h2>
+<p>All findings above are fixed in Cerberus v0.2.0, alongside 50 regression tests — one
+per defect, each documenting the wrong behaviour it prevents — and an end-to-end smoke
+test that builds miniature references and asserts host removal by read provenance rather
+than by exit code. Every run now writes
+<code>reports/cerberus_report.html</code>: resolved parameters, per-stage read
+accounting, verification of every output file, the per-mechanism GDPR breakdown, and any
+warnings raised.</p>
+<footer>Generated from the ten pass reports in <code>reviews/</code>.</footer></div></body></html>

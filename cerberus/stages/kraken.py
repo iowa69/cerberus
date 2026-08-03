@@ -1,5 +1,21 @@
 """Kraken2 wrapper for the GDPR scrub. Extracts reads NOT classified as host.
 
+Confidence
+----------
+Kraken2's ``--confidence`` is the fraction of a read's k-mers that must map
+to the reported taxon's root-to-leaf path. The usual reason to raise it is to
+suppress false *positive* identifications when the database spans all of
+life. Cerberus' GDPR database is the opposite situation: it contains **only**
+host taxa, so every classification is a hit on the thing we want gone, and a
+high threshold merely lets host reads escape as "unclassified".
+
+A 150 bp read has 121 31-mers; two sequencing errors already knock out ~62 of
+them, so a genuine human read can score ~0.4 and slip past a 0.5 threshold.
+On ONT data at 2-5% error, essentially no read reaches 0.5 at all, which made
+the mechanism a complete no-op. The default is therefore low (0.05) and
+exposed as ``--gdpr-confidence`` for anyone who needs to trade recall for
+retained microbial signal.
+
 Filename handling: kraken2's ``--unclassified-out '<dir>/foo#.fq'`` template
 gets ``#`` replaced with ``_1``/``_2`` for paired data. We pass the template
 unchanged and discover the actual files via glob — robust to substitution
@@ -7,6 +23,7 @@ variants between kraken2 versions.
 """
 from __future__ import annotations
 
+import gzip
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,9 +33,9 @@ from cerberus.utils.shell import require_tools, run, which
 
 log = get_logger("kraken")
 
-# Taxa scrubbed by the GDPR pass. Kept for reference; the DB only contains
-# mammalian taxa so anything classified will be host-derived.
-GDPR_DROP_TAXA = ["9605", "9527", "40674", "9606"]
+
+class KrakenOutputError(RuntimeError):
+    """Kraken2 ran but its outputs could not be located."""
 
 
 @dataclass
@@ -54,17 +71,16 @@ def kraken2_paired(
         "--db", str(db),
         "--threads", str(cfg.threads),
         "--paired",
-        "--gzip-compressed",
         "--unclassified-out", unclass_template,
         "--report", str(report),
         "--output", str(output),
         "--use-names",
-        "--confidence", "0.5",
+        "--confidence", str(cfg.gdpr_confidence),
     ]
+    if _is_gzip(r1_in):
+        cmd.append("--gzip-compressed")
     if keep_classified:
-        cmd.extend([
-            "--classified-out", str(workdir / f"{tag}.kraken_class#.fq"),
-        ])
+        cmd.extend(["--classified-out", str(workdir / f"{tag}.kraken_class#.fq")])
     cmd.extend([str(r1_in), str(r2_in)])
 
     run(cmd, log_path=log_dir / f"{tag}.kraken2.log", dry_run=cfg.dry_run)
@@ -105,14 +121,15 @@ def kraken2_single(
         "kraken2",
         "--db", str(db),
         "--threads", str(cfg.threads),
-        "--gzip-compressed",
         "--unclassified-out", str(unclass),
         "--report", str(report),
         "--output", str(output),
         "--use-names",
-        "--confidence", "0.5",
-        str(reads_in),
+        "--confidence", str(cfg.gdpr_confidence),
     ]
+    if _is_gzip(reads_in):
+        cmd.append("--gzip-compressed")
+    cmd.append(str(reads_in))
     run(cmd, log_path=log_dir / f"{tag}.kraken2.log", dry_run=cfg.dry_run)
 
     out_gz = _gzip_inplace(unclass, cfg)
@@ -126,28 +143,51 @@ def kraken2_single(
     )
 
 
+def _is_gzip(path: Path) -> bool:
+    try:
+        with path.open("rb") as f:
+            return f.read(2) == b"\x1f\x8b"
+    except OSError:
+        return str(path).endswith(".gz")
+
+
 def _gzip_pair_outputs(
     workdir: Path, name_root: str, cfg: CerberusConfig,
 ) -> tuple[Path, Path]:
     """kraken2 produces ``<root>_1.fq`` / ``<root>_2.fq`` for paired data.
-    Older versions used ``<root>1.fq`` / ``<root>2.fq``. Glob for either.
+
+    Older versions used ``<root>1.fq`` / ``<root>2.fq``, so glob for either.
     Gzip both in place and return the .gz paths.
+
+    A genuine "no reads survived" result and a naming mismatch used to look
+    identical here — both produced empty placeholders. They are now
+    distinguished: zero surviving reads is normal and yields valid empty
+    gzips, but files that exist under an unrecognised name are an error,
+    because silently publishing an empty GDPR release is the worst possible
+    failure mode.
     """
+    if cfg.dry_run:
+        return (workdir / f"{name_root}_1.fq.gz", workdir / f"{name_root}_2.fq.gz")
+
     candidates_r1 = sorted(workdir.glob(f"{name_root}*1.fq")) + \
                     sorted(workdir.glob(f"{name_root}*1.fastq"))
     candidates_r2 = sorted(workdir.glob(f"{name_root}*2.fq")) + \
                     sorted(workdir.glob(f"{name_root}*2.fastq"))
 
     if not candidates_r1 or not candidates_r2:
-        # Fall back: emit empty placeholders so downstream stages still see files.
-        log.warning("kraken2 produced no R1/R2 unclassified files for %s; emitting empty placeholders", name_root)
+        stray = [p.name for p in workdir.glob(f"{name_root}*")]
+        if stray:
+            raise KrakenOutputError(
+                f"kraken2 wrote {stray} but Cerberus could not identify the R1/R2 pair for "
+                f"{name_root!r}. Refusing to continue rather than emit an empty output."
+            )
+        log.info("kraken2 classified every read as host for %s; output is empty.", name_root)
         r1 = workdir / f"{name_root}_1.fq"
         r2 = workdir / f"{name_root}_2.fq"
-        r1.touch()
-        r2.touch()
+        r1.write_bytes(b"")
+        r2.write_bytes(b"")
     else:
-        r1 = candidates_r1[0]
-        r2 = candidates_r2[0]
+        r1, r2 = candidates_r1[0], candidates_r2[0]
 
     return _gzip_inplace(r1, cfg), _gzip_inplace(r2, cfg)
 
@@ -157,14 +197,15 @@ def _gzip_inplace(src: Path, cfg: CerberusConfig) -> Path:
     if cfg.dry_run:
         return dst
     if not src.exists():
-        # Produce a valid empty gzip so downstream stages can read it.
+        if dst.exists():
+            # Already compressed by a previous step; do not clobber real data.
+            return dst
         _write_empty_gzip(dst)
         return dst
     if which("pigz"):
         run(["pigz", "-f", "-p", str(cfg.threads), str(src)],
             log_path=src.with_suffix(".gzip.log"), dry_run=cfg.dry_run)
     else:
-        import gzip
         with src.open("rb") as fin, gzip.open(dst, "wb") as fout:
             for chunk in iter(lambda: fin.read(1024 * 1024), b""):
                 fout.write(chunk)
@@ -174,6 +215,5 @@ def _gzip_inplace(src: Path, cfg: CerberusConfig) -> Path:
 
 def _write_empty_gzip(path: Path) -> None:
     """Write a minimal valid empty gzip stream so bbduk/seqkit can read it."""
-    import gzip
     with gzip.open(path, "wb") as f:
         f.write(b"")

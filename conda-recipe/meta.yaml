@@ -1,5 +1,5 @@
 {% set name = "cerberus-mg" %}
-{% set version = "0.1.1" %}
+{% set version = "0.2.0" %}
 
 package:
   name: {{ name|lower }}
@@ -7,11 +7,10 @@ package:
 
 source:
   url: https://github.com/iowa69/cerberus/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: c17944783acded3876b5d49a572ac77371b8e1737646b05f8b4c87f5d8d149bf
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000  # TODO: fill from the v0.2.0 release tarball
 
 build:
   number: 0
-  noarch: python
   entry_points:
     - cerberus = cerberus.cli:main
   script: {{ PYTHON }} -m pip install . --no-deps --no-build-isolation -vv
@@ -24,8 +23,8 @@ requirements:
   run:
     - python >=3.10
     - tqdm >=4.66
-    - pyyaml >=6.0
     - fastp >=0.24
+    - fastplong >=0.2
     - minimap2 >=2.28
     - bowtie2 >=2.5
     - bbmap >=39.0

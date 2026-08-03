@@ -6,6 +6,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import ClassVar
 
 
 class _JsonlFormatter(logging.Formatter):
@@ -23,7 +24,7 @@ class _JsonlFormatter(logging.Formatter):
 
 class _ConsoleFormatter(logging.Formatter):
     RESET = "\033[0m"
-    COLORS = {
+    COLORS: ClassVar[dict[str, str]] = {
         "DEBUG": "\033[2;37m",
         "INFO": "\033[36m",
         "WARNING": "\033[33m",
@@ -36,7 +37,7 @@ class _ConsoleFormatter(logging.Formatter):
         self.color = color and sys.stderr.isatty()
 
     def format(self, record: logging.LogRecord) -> str:
-        ts = datetime.now().strftime("%H:%M:%S")
+        ts = datetime.now().astimezone().strftime("%H:%M:%S")
         prefix = f"[{ts}] {record.levelname:<7s} {record.name}"
         msg = record.getMessage()
         if self.color:

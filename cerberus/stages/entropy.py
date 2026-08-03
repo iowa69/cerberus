@@ -35,13 +35,15 @@ def entropy_paired(
     stats = workdir / f"{tag}.entropy.stats.txt"
 
     entropy = cfg.entropy if cfg.entropy is not None else tuned.entropy
+    # The window cannot exceed the reads it is measured over.
+    window = min(tuned.entropy_window, max(10, tuned.min_length))
     cmd = [
         "bbduk.sh",
         f"-Xmx{max(2, cfg.memory_gb // 2)}g",
         f"in1={r1_in}", f"in2={r2_in}",
         f"out1={out_r1}", f"out2={out_r2}",
         f"entropy={entropy}",
-        "entropywindow=50",
+        f"entropywindow={window}",
         "entropyk=5",
         f"stats={stats}",
         f"threads={cfg.threads}",
@@ -65,13 +67,15 @@ def entropy_single(
     stats = workdir / f"{tag}.entropy.stats.txt"
 
     entropy = cfg.entropy if cfg.entropy is not None else tuned.entropy
+    # The window cannot exceed the reads it is measured over.
+    window = min(tuned.entropy_window, max(10, tuned.min_length))
     cmd = [
         "bbduk.sh",
         f"-Xmx{max(2, cfg.memory_gb // 2)}g",
         f"in={reads_in}",
         f"out={out}",
         f"entropy={entropy}",
-        "entropywindow=50",
+        f"entropywindow={window}",
         "entropyk=5",
         f"stats={stats}",
         f"threads={cfg.threads}",
