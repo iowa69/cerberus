@@ -21,6 +21,24 @@ reports with severity styling and cross-links — clone the repo and open
 | 9 | Documentation and packaging — claim-by-claim against the code | [md](pass09.md) · [html](pass09.html) |
 | 10 | Operational robustness — memory, threads, disk, crash safety | [md](pass10.md) · [html](pass10.html) |
 
+## Second round — reviewing the fix
+
+The v0.2.0 refactor was then reviewed adversarially in its own right, on the
+assumption that its author had been overconfident. That was worth doing: it
+found nine defects the refactor had *introduced*, including a Ctrl-C path that
+left forked JVMs running, a pipe failure blamed on the wrong tool, a hang in
+the read counter, and `_work/` cleanup deleting the QC artefacts. A parallel
+Bioconda readiness review found that `noarch: python` had been removed from
+the conda recipe on the strength of a v0.1.1 finding that the already-published
+recipe contradicts.
+
+| Review | Report |
+|---|---|
+| Adversarial pass over the v0.2.0 changes | [md](v0.2.0-adversarial.md) |
+| Bioconda packaging readiness | [md](v0.2.0-bioconda-readiness.md) |
+
+All of it is fixed in v0.2.1.
+
 ## How the findings were verified
 
 Findings were checked against a running pipeline, not just read off the source.
