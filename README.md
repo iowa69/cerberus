@@ -290,8 +290,8 @@ out/
 ├── <sample>.profiling.fastq.gz      # if --profiling
 ├── <sample>.meta.R1_GDPR.fastq.gz      # if --gdpr (per source head)
 ├── <sample>.meta.R2_GDPR.fastq.gz
-├── <sample>.meta.orphans_GDPR.fastq.gz
-├── <sample>.profiling.orphans_GDPR.fastq.gz
+├── <sample>.meta.orphans_GDPR.fastq.gz  # meta's unpaired leftovers
+├── <sample>.profiling_GDPR.fastq.gz    # profiling's scrubbed deliverable
 ├── reports/
 │   ├── cerberus_report.html  # full run report: parameters, per-stage
 │   │                         # accounting, output verification, warnings

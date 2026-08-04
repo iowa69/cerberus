@@ -88,7 +88,7 @@ def run_gdpr_for(
             log_dir=logs, tag="01_kraken2",
         )
         r1, r2 = k_out.cleaned_r1, k_out.cleaned_r2
-        track.record("gdpr_after_kraken2", r1, r2)
+        track.record("gdpr_after_kraken2_paired", r1, r2)
 
         if human_kmers is not None:
             km = bbduk_kmer_paired(
@@ -99,7 +99,7 @@ def run_gdpr_for(
                 log_dir=logs, tag="02_human_kmers",
             )
             r1, r2 = km.r1, km.r2
-            track.record("gdpr_after_human_kmers", r1, r2)
+            track.record("gdpr_after_human_kmers_paired", r1, r2)
 
         mm2_out = minimap2_paired(
             cfg, tuned,
@@ -109,7 +109,7 @@ def run_gdpr_for(
             log_dir=logs, tag="03_minimap2_human",
             drop_strategy="either",
         )
-        after = track.record("gdpr_after_minimap2", mm2_out.r1, mm2_out.r2)
+        after = track.record("gdpr_after_minimap2_paired", mm2_out.r1, mm2_out.r2)
         _warn_on_total_loss(track, "paired", before, after)
 
         result.paired_r1 = publish(
@@ -120,13 +120,22 @@ def run_gdpr_for(
             cfg.out_dir / f"{cfg.sample_id}.{pipeline_result.mode}.R2_GDPR.fastq.gz")
 
     if pipeline_result.singletons:
+        # `singletons` means different things per head: for meta it is the
+        # unpaired leftovers, but for profiling it is the single merged file
+        # that *is* the deliverable. Naming both "orphans" would label the
+        # profiling head's only GDPR output as if it were a side stream.
+        is_primary = pipeline_result.paired_r1 is None
+        out_name = (
+            f"{cfg.sample_id}.{pipeline_result.mode}_GDPR.fastq.gz" if is_primary
+            else f"{cfg.sample_id}.{pipeline_result.mode}.orphans_GDPR.fastq.gz"
+        )
         result.singletons = _gdpr_single(
             cfg, tuned, pipeline_result.singletons,
             workdir=stage_dir(work, "04_singletons"),
             log_dir=logs, tag_prefix="04_single",
             kdb=kdb, mm2_idx=mm2_idx, human_kmers=human_kmers, track=track,
-            label="singletons",
-            out_name=f"{cfg.sample_id}.{pipeline_result.mode}.orphans_GDPR.fastq.gz",
+            label="merged" if is_primary else "orphans",
+            out_name=out_name,
         )
 
     if pipeline_result.long_reads:
@@ -196,22 +205,39 @@ def _warn_on_total_loss(track: StageTracker, label: str, before: int, after: int
         )
 
 
-def residual_host_estimate(stats: dict[str, int]) -> dict[str, float]:
-    """Fraction removed by each mechanism, for the run report.
+# Mechanism order within one GDPR stream, as the stage keys are emitted.
+_MECHANISMS = [
+    ("kraken2", "gdpr_input", "gdpr_after_kraken2"),
+    ("bbduk-human-kmers", "gdpr_after_kraken2", "gdpr_after_human_kmers"),
+    ("minimap2", "gdpr_after_human_kmers", "gdpr_after_minimap2"),
+]
 
-    A mechanism that removes nothing is a signal in itself: it usually means
-    the mechanism could not act (wrong preset, wrong database) rather than
-    that the sample was already clean.
+
+def residual_host_estimate(stats: dict[str, int]) -> dict[str, dict[str, float]]:
+    """Per-stream, per-mechanism percentage of reads removed, for the run report.
+
+    Stage keys carry a stream suffix (``_paired``, ``_orphans``, ``_merged``,
+    ``_long``), so this discovers the streams present rather than assuming the
+    paired one — the profiling and long-read heads have no paired stream at
+    all, and hard-coding the paired keys left their table empty.
+
+    Mechanisms that did not run are skipped, and the chain closes over them:
+    with the human k-mer asset absent, minimap2's "before" becomes the
+    Kraken2 output rather than a missing key.
     """
-    out: dict[str, float] = {}
-    order = [
-        ("kraken2", "gdpr_input_paired", "gdpr_after_kraken2"),
-        ("bbduk-human-kmers", "gdpr_after_kraken2", "gdpr_after_human_kmers"),
-        ("minimap2", "gdpr_after_human_kmers", "gdpr_after_minimap2"),
-    ]
-    for name, before_key, after_key in order:
-        before = stats.get(before_key)
-        after = stats.get(after_key)
-        if before and after is not None:
-            out[name] = round(100.0 * (before - after) / before, 4)
-    return out
+    streams: dict[str, dict[str, float]] = {}
+    suffixes = sorted({k[len("gdpr_input"):] for k in stats if k.startswith("gdpr_input")})
+
+    for suffix in suffixes:
+        chain: dict[str, float] = {}
+        previous = stats.get(f"gdpr_input{suffix}")
+        for name, _, after_key in _MECHANISMS:
+            after = stats.get(f"{after_key}{suffix}")
+            if after is None or previous is None:
+                continue                       # mechanism did not run
+            if previous > 0:
+                chain[name] = round(100.0 * (previous - after) / previous, 4)
+            previous = after
+        if chain:
+            streams[suffix.lstrip("_") or "reads"] = chain
+    return streams

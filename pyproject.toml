@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cerberus-mg"
-version = "0.2.0"
-description = "Three-headed host-removal pipeline for metagenomic data: assembly, profiling, and GDPR-compliant outputs from one run."
+version = "0.2.1"
+description = "Three-headed host removal for metagenomic data: assembly, profiling and privacy-scrubbed outputs from one run."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

@@ -1,5 +1,74 @@
 # Changelog
 
+## v0.2.1
+
+A second review pass — this time adversarial, against the v0.2.0 refactor
+itself — found defects that the refactor had introduced. v0.2.0 was published
+for less than a day and was superseded before reaching Bioconda; use v0.2.1.
+
+### Fixed — output naming
+
+- **The profiling head's GDPR deliverable was named `…orphans_GDPR…`.**
+  `singletons` means the unpaired leftovers for `--meta` but the single merged
+  file for `--profiling`, so the profiling head's only scrubbed output was
+  labelled as if it were a side stream. It is now
+  `<sample>.profiling_GDPR.fastq.gz`; meta's genuine leftovers keep
+  `<sample>.meta.orphans_GDPR.fastq.gz`.
+
+### Fixed — regressions introduced in v0.2.0
+
+- **Ctrl-C left forked grandchildren running.** `terminate_all()` signalled
+  only direct children, so the `bbduk.sh` wrapper died while its JVM kept
+  running and writing into the work directory. Children now start in their own
+  process group and the whole group is signalled.
+- **Interrupting a run stalled for ten seconds.** The signal handler called
+  `Popen.wait()` on a process the main thread already held the wait-lock for.
+  The handler now only signals; reaping is left to the owning thread.
+- **A pipe failure was blamed on the wrong tool.** v0.2.0 raised on the first
+  non-zero status, but a dying consumer takes its producer down with it — so
+  `minimap2 | samtools view -o /bad/path` reported minimap2 as the failure.
+  The furthest-downstream failing stage is now the headline, with any upstream
+  collateral listed alongside it.
+- **`_line_count_pipe()` could hang forever.** It waited on the decompressor
+  before draining its stderr pipe, so a tool that emitted more than a pipe
+  buffer of warnings deadlocked. stderr is now drained first.
+- **A truncated gzip could kill a finished run.** `count_reads()` fell through
+  to the Python reader, which raises `EOFError` — not an `OSError`, so nothing
+  caught it. Corrupt input is now reported and counted as zero.
+- **`_work/` cleanup deleted the QC artefacts.** `fastp.html`/`.json`, every
+  bbduk `stats=` file and every `flagstat.txt` went with it. They are now
+  copied to `reports/qc/` before the intermediates are removed.
+- **The report's GDPR mechanism table was empty for the profiling and
+  long-read heads**, because it looked only for paired-stream stage keys. It
+  now discovers the streams present, and closes the chain over a mechanism
+  that did not run instead of dropping the rows after it.
+- **The report's "removed here" column diffed across unrelated streams**,
+  producing entries like "0 records → removed 8,000 → 100%". Deltas are now
+  computed only within a stream.
+- **The same file was decompressed up to four times per run** (58 counting
+  passes over 15.6× the input size). Counts are cached on file identity
+  (size and mtime), so a rewrite still invalidates the entry.
+
+### Added
+
+- A run now warns when the output directory holds deliverables from an earlier,
+  wider run that this one did not refresh — previously a narrower re-run left
+  stale files with nothing flagging them.
+- Regression tests for each of the above (123 tests total).
+
+### Packaging
+
+- `noarch: python` restored. It was removed in v0.2.0 on the strength of a
+  review finding, but the recipe already published to Bioconda uses it, as do
+  600+ other pure-Python wrappers with compiled bioinformatics dependencies.
+  Verified by building the package locally.
+- `pyyaml`, `seqkit`, `multiqc`, `bedtools` and `chopper` dropped from the
+  runtime dependencies: none is invoked by the pipeline (`fastplong` is a hard
+  dependency, so chopper's fallback path is unreachable in a conda install).
+  This removes multiqc's whole tree from the install closure.
+- The package summary no longer claims "GDPR-compliant outputs", matching the
+  wording correction made to the README in v0.2.0.
+
 ## v0.2.0 — correctness release
 
 This release came out of a ten-pass review of v0.1.1 covering read-filtering
@@ -127,6 +196,18 @@ scientific output, so **results produced with v0.1.x should be regenerated**.
   rejected with a message instead of being interpolated into a command line.
 - `samtools flagstat` output is written to its own file rather than a log with
   a `# CMD:` header prepended.
+- **GDPR output filenames changed.** Scripts that glob for them need updating:
+
+  | v0.1.1 | v0.2.x |
+  |---|---|
+  | `<sample>.profiling.GDPR.fastq.gz` | `<sample>.profiling_GDPR.fastq.gz` |
+  | `<sample>.meta.GDPR.fastq.gz` | `<sample>.meta.orphans_GDPR.fastq.gz` |
+  | `<sample>.<mode>.long_GDPR.fastq.gz` | `<sample>.long_<mode>_GDPR.fastq.gz` |
+
+  The paired names (`<sample>.<mode>.R1_GDPR.fastq.gz`) are unchanged. The
+  split exists because `singletons` means different things per head: meta's
+  unpaired leftovers versus profiling's single merged deliverable. Naming both
+  "orphans" labelled the profiling head's only GDPR output as a side stream.
 - Long-read output names use underscores consistently
   (`<sample>.long_meta.fastq.gz`).
 - The conda recipe drops `noarch: python` (its runtime dependencies are

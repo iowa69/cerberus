@@ -527,3 +527,209 @@ def test_bad_memory_gives_a_clean_error_not_a_traceback() -> None:
     assert res.returncode == 2
     assert "Traceback" not in res.stderr
     assert "banana" in res.stderr
+
+
+# --------------------------------------------------------------------------
+# gdpr.py — output naming must describe what the file actually is
+# --------------------------------------------------------------------------
+
+def test_gdpr_names_the_profiling_deliverable_correctly(tmp_path: Path) -> None:
+    """`singletons` means different things per head.
+
+    For meta it is the unpaired leftovers; for profiling it is the single
+    merged file that *is* the deliverable. v0.2.0 named both "orphans", which
+    labelled the profiling head's only GDPR output as a side stream.
+    """
+    from cerberus.pipelines.base import PipelineResult
+
+    def gdpr_name(result: PipelineResult, sample: str = "S") -> str:
+        is_primary = result.paired_r1 is None
+        return (f"{sample}.{result.mode}_GDPR.fastq.gz" if is_primary
+                else f"{sample}.{result.mode}.orphans_GDPR.fastq.gz")
+
+    profiling = PipelineResult(mode="profiling", singletons=tmp_path / "p.fq.gz")
+    assert gdpr_name(profiling) == "S.profiling_GDPR.fastq.gz"
+
+    meta = PipelineResult(
+        mode="meta", paired_r1=tmp_path / "r1.gz", paired_r2=tmp_path / "r2.gz",
+        singletons=tmp_path / "o.fq.gz",
+    )
+    assert gdpr_name(meta) == "S.meta.orphans_GDPR.fastq.gz"
+
+
+def test_gdpr_output_names_are_unique_across_heads() -> None:
+    """meta and profiling must never collide on an output filename."""
+    from cerberus.pipelines.base import PipelineResult
+
+    names: list[str] = []
+    for result in (
+        PipelineResult(mode="meta", paired_r1=Path("a"), paired_r2=Path("b"),
+                       singletons=Path("c")),
+        PipelineResult(mode="profiling", singletons=Path("d")),
+        PipelineResult(mode="long_meta", long_reads=Path("e")),
+        PipelineResult(mode="long_profiling", long_reads=Path("f")),
+    ):
+        is_primary = result.paired_r1 is None
+        if result.paired_r1:
+            names += [f"S.{result.mode}.R1_GDPR.fastq.gz",
+                      f"S.{result.mode}.R2_GDPR.fastq.gz"]
+        if result.singletons:
+            names.append(f"S.{result.mode}_GDPR.fastq.gz" if is_primary
+                         else f"S.{result.mode}.orphans_GDPR.fastq.gz")
+        if result.long_reads:
+            names.append(f"S.{result.mode}_GDPR.fastq.gz")
+
+    assert len(names) == len(set(names)), f"colliding names: {sorted(names)}"
+    assert all(n.endswith("_GDPR.fastq.gz") for n in names), sorted(names)
+    assert "S.profiling_GDPR.fastq.gz" in names
+    assert "S.profiling.orphans_GDPR.fastq.gz" not in names
+
+
+# --------------------------------------------------------------------------
+# v0.2.1 — defects introduced by the v0.2.0 refactor itself
+# --------------------------------------------------------------------------
+
+def test_pipe_blames_the_downstream_stage_when_several_fail(tmp_path: Path) -> None:
+    """A dying consumer takes its producer down with it.
+
+    v0.2.0 raised on the first non-zero status, so a bad output path on the
+    consumer was reported as the producer failing.
+    """
+    with pytest.raises(ToolError) as exc:
+        pipe(
+            [[sys.executable, "-c",
+              "import sys\nfor _ in range(200000): sys.stdout.write('x' * 80 + '\\n')"],
+             [sys.executable, "-c", "import sys; sys.exit(9)"]],
+            log_path=tmp_path / "p.log",
+        )
+    msg = str(exc.value)
+    assert "stage 2/2" in msg
+    assert "rc=9" in msg
+
+
+def test_pipe_still_blames_a_lone_upstream_failure(tmp_path: Path) -> None:
+    with pytest.raises(ToolError) as exc:
+        pipe([[sys.executable, "-c", "import sys; sys.exit(3)"], ["cat"]],
+             log_path=tmp_path / "p.log")
+    assert "stage 1/2" in str(exc.value)
+
+
+def test_children_are_started_in_their_own_process_group(tmp_path: Path) -> None:
+    """Signalling only the direct child leaves forked grandchildren running.
+
+    bbduk.sh is a shell wrapper around a JVM, so this is not hypothetical.
+    """
+    import os
+    import signal as _signal
+    import threading
+    import time
+
+    from cerberus.utils import shell as sh
+
+    pidfile = tmp_path / "pids.txt"
+    script = f'sleep 60 & echo "$$ $!" > {pidfile}; wait'
+    t = threading.Thread(
+        target=lambda: _swallow(lambda: run(["sh", "-c", script],
+                                            log_path=tmp_path / "pg.log")),
+        daemon=True,
+    )
+    t.start()
+    for _ in range(100):
+        if pidfile.exists():
+            break
+        time.sleep(0.05)
+    child, grandchild = (int(x) for x in pidfile.read_text().split())
+    assert os.getpgid(child) == os.getpgid(grandchild)
+
+    assert sh.terminate_all(_signal.SIGTERM) >= 1
+    t.join(timeout=20)
+    time.sleep(0.5)
+    for pid in (child, grandchild):
+        with pytest.raises(OSError):
+            os.kill(pid, 0)
+
+
+def _swallow(fn):
+    """Run fn, ignoring the ToolError raised when we kill it mid-flight."""
+    try:
+        fn()
+    except Exception as e:                      # noqa: BLE001 - the kill is the point
+        print(f"(expected during teardown test: {type(e).__name__})")
+
+
+def test_count_reads_is_cached_per_file_identity(tmp_path: Path) -> None:
+    """v0.2.0 decompressed the same file up to four times per run."""
+    from cerberus.utils import fastq as fq
+
+    p = tmp_path / "r.fq.gz"
+    with gzip.open(p, "wt") as f:
+        f.write("@a\nACGT\n+\nIIII\n" * 25)
+
+    fq.clear_count_cache()
+    calls = {"n": 0}
+    real = fq._count_python
+
+    def counting(path):
+        calls["n"] += 1
+        return real(path)
+
+    fq._count_python = counting
+    try:
+        # force the Python path so the counter sees every read
+        assert fq.count_reads(p) == 25
+        first = calls["n"]
+        for _ in range(5):
+            assert fq.count_reads(p) == 25
+        assert calls["n"] == first, "cache did not prevent repeated decompression"
+
+        # rewriting the file must invalidate the entry
+        with gzip.open(p, "wt") as f:
+            f.write("@a\nACGT\n+\nIIII\n" * 3)
+        assert fq.count_reads(p) == 3
+    finally:
+        fq._count_python = real
+        fq.clear_count_cache()
+
+
+def test_corrupt_gzip_does_not_kill_the_run(tmp_path: Path) -> None:
+    """A truncated gzip raises EOFError, which is not an OSError."""
+    from cerberus.utils import fastq as fq
+
+    good = tmp_path / "g.fq.gz"
+    with gzip.open(good, "wt") as f:
+        f.write("@a\nACGT\n+\nIIII\n" * 50)
+    truncated = tmp_path / "t.fq.gz"
+    truncated.write_bytes(good.read_bytes()[: good.stat().st_size // 2])
+
+    fq.clear_count_cache()
+    assert fq.count_reads(truncated) >= 0        # must not raise
+
+
+def test_gdpr_mechanism_table_covers_non_paired_heads() -> None:
+    """v0.2.0 hard-coded paired keys, leaving profiling/long tables empty."""
+    from cerberus.pipelines.gdpr import residual_host_estimate
+
+    merged_only = {
+        "gdpr_input_merged": 1000,
+        "gdpr_after_kraken2_merged": 900,
+        "gdpr_after_human_kmers_merged": 850,
+        "gdpr_after_minimap2_merged": 800,
+    }
+    est = residual_host_estimate(merged_only)
+    assert set(est) == {"merged"}
+    assert est["merged"]["kraken2"] == pytest.approx(10.0)
+    assert est["merged"]["bbduk-human-kmers"] == pytest.approx(100 * 50 / 900, rel=1e-3)
+    assert est["merged"]["minimap2"] == pytest.approx(100 * 50 / 850, rel=1e-3)
+
+
+def test_gdpr_mechanism_chain_closes_over_a_skipped_mechanism() -> None:
+    """With the human k-mer asset absent, minimap2 must still be measured."""
+    from cerberus.pipelines.gdpr import residual_host_estimate
+
+    est = residual_host_estimate({
+        "gdpr_input_paired": 1000,
+        "gdpr_after_kraken2_paired": 800,
+        "gdpr_after_minimap2_paired": 600,
+    })
+    assert "bbduk-human-kmers" not in est["paired"]
+    assert est["paired"]["minimap2"] == pytest.approx(25.0)

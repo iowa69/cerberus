@@ -14,6 +14,7 @@ group instead of leaving a 32-thread aligner running detached.
 """
 from __future__ import annotations
 
+import os
 import shlex
 import signal
 import subprocess
@@ -41,27 +42,36 @@ def _untrack(proc: subprocess.Popen) -> None:
         _LIVE.discard(proc)
 
 
+def _signal_group(proc: subprocess.Popen, sig: int) -> bool:
+    """Signal a child's whole process group, falling back to the child alone.
+
+    Children are started with ``start_new_session=True``, so each leads its own
+    group. That matters because several of the tools fork: ``bbduk.sh`` is a
+    shell wrapper around a JVM, and signalling only the wrapper leaves the JVM
+    running and still writing into the work directory.
+    """
+    try:
+        os.killpg(os.getpgid(proc.pid), sig)
+        return True
+    except (ProcessLookupError, PermissionError, OSError):
+        try:
+            proc.send_signal(sig)
+            return True
+        except OSError:
+            return False
+
+
 def terminate_all(sig: int = signal.SIGTERM) -> int:
-    """Signal every tracked child. Returns how many were signalled."""
+    """Signal every tracked child's process group. Returns how many were signalled.
+
+    Deliberately does **not** wait. This is called from a signal handler, and
+    ``Popen.wait()`` there would re-enter a lock the main thread already holds
+    for the same process, stalling the interrupt for the full timeout. Reaping
+    is left to whichever thread owns the process.
+    """
     with _LIVE_LOCK:
         procs = list(_LIVE)
-    n = 0
-    for p in procs:
-        if p.poll() is None:
-            try:
-                p.send_signal(sig)
-                n += 1
-            except OSError:
-                pass
-    for p in procs:
-        try:
-            p.wait(timeout=10)
-        except (subprocess.TimeoutExpired, OSError):
-            try:
-                p.kill()
-            except OSError:
-                pass
-    return n
+    return sum(1 for p in procs if p.poll() is None and _signal_group(p, sig))
 
 
 class ToolError(RuntimeError):
@@ -142,6 +152,7 @@ def run(
                 stderr=logf if out_ctx is not None else subprocess.STDOUT,
                 cwd=str(cwd) if cwd else None,
                 env=dict(env) if env else None,
+                start_new_session=True,
             )
             _track(proc)
             try:
@@ -217,6 +228,7 @@ def pipe(
                     stdout=stdout,
                     stderr=stderr_log,
                     cwd=str(cwd) if cwd else None,
+                    start_new_session=True,
                 )
                 _track(p)
                 # The parent must close its copy of the upstream pipe so the
@@ -250,13 +262,22 @@ def pipe(
 
     codes = [p.returncode for p in procs]
 
-    # SIGPIPE (rc -13 / 141) on a producer is normal when a consumer exits
-    # early on purpose; it is not normal here because every consumer we build
-    # reads to EOF. Report any non-zero status, naming the stage.
-    for i, (cmd, rc) in enumerate(zip(cmds, codes)):
-        if rc != 0:
-            stage = f"stage {i + 1}/{len(cmds)}: {cmd[0]}"
-            raise ToolError(cmd, rc, log_path, stage=stage)
+    failures = [(i, cmd, rc) for i, (cmd, rc) in enumerate(zip(cmds, codes)) if rc != 0]
+    if failures:
+        # Failure propagates upstream: when a consumer dies, its producer is
+        # killed by SIGPIPE (or exits non-zero on a broken pipe) as a direct
+        # consequence. So when several stages failed, the furthest downstream
+        # one is the root cause and the ones before it are collateral. When
+        # only one failed, it is unambiguous. Every failure is listed either
+        # way, so nothing is hidden by the choice of headline.
+        i, cmd, rc = failures[-1]
+        stage = f"stage {i + 1}/{len(cmds)}: {cmd[0]}"
+        if len(failures) > 1:
+            others = ", ".join(
+                f"stage {j + 1} ({c[0]}) rc={r}" for j, c, r in failures[:-1]
+            )
+            stage += f"; also failed upstream, likely as a consequence: {others}"
+        raise ToolError(cmd, rc, log_path, stage=stage)
 
     return ToolResult(cmd=cmds[-1], returncode=codes[-1], log_path=log_path,
                       returncodes=codes)

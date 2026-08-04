@@ -333,7 +333,7 @@ def _run_doctor(argv: list[str]) -> int:
 
     print("External tools:")
     required = ["fastp", "minimap2", "bowtie2", "bbduk.sh", "kraken2", "samtools", "pigz"]
-    optional = ["fastplong", "chopper", "winnowmap", "aria2c", "zstd", "seqkit", "multiqc"]
+    optional = ["fastplong", "chopper", "winnowmap", "aria2c", "zstd"]
     missing_req = []
     for t in required:
         path = which(t)

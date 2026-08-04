@@ -177,6 +177,14 @@ check "meta pairs stay paired"          "$(names_matching "$OUT/SMOKE.meta.R2.fa
 check "profiling drops half-host pairs" "$(names_matching "$OUT/SMOKE.profiling.fastq.gz" HALF)"    0
 check "profiling removes host reads"    "$(names_matching "$OUT/SMOKE.profiling.fastq.gz" HOST_)"     0
 check "GDPR R1 removes host reads"      "$(names_matching "$OUT/SMOKE.meta.R1_GDPR.fastq.gz" HOST_)"  0
+# profiling's GDPR output is its deliverable, not a side stream, so it must not
+# be named "orphans" the way meta's unpaired leftovers are
+[ -s "$OUT/SMOKE.profiling_GDPR.fastq.gz" ] \
+  && ok "profiling GDPR deliverable is named for what it is" \
+  || bad "expected $OUT/SMOKE.profiling_GDPR.fastq.gz"
+[ -e "$OUT/SMOKE.profiling.orphans_GDPR.fastq.gz" ] \
+  && bad "profiling deliverable is still mislabelled as orphans" \
+  || ok "no mislabelled profiling orphans file"
 
 say "Output integrity"
 for f in "$OUT"/*.fastq.gz; do

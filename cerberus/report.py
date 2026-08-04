@@ -160,7 +160,7 @@ def build_context(
 
     outputs = collect_outputs(cfg, results, gdpr_outputs)
 
-    gdpr_mech: dict[str, dict[str, float]] = {}
+    gdpr_mech: dict[str, dict[str, dict[str, float]]] = {}
     if cfg.gdpr:
         from cerberus.pipelines.gdpr import residual_host_estimate
         for r in results:
@@ -364,13 +364,21 @@ modes: {_esc(', '.join(ctx['modes']))}
         parts.append('<p class="sub">No per-stage counts (dry run).</p>')
     for mode in modes:
         stages = acct.stages_for(mode)
-        first = stages[0].reads if stages else 0
         rows = []
         prev = None
+        baseline = 0
         for s in stages:
-            removed = "—" if prev is None else _fmt_int(max(0, prev - s.reads))
-            share = "—" if prev is None else _pct(max(0, prev - s.reads), prev) if prev else "—"
-            width = (100.0 * s.reads / first) if first else 0
+            # A head interleaves several streams (paired, orphans, merged...).
+            # A count that goes *up* means a new stream started, so the delta
+            # against the previous row would be meaningless — restart there.
+            new_stream = prev is None or s.reads > prev
+            if new_stream:
+                baseline = s.reads
+                removed = share = "—"
+            else:
+                removed = _fmt_int(prev - s.reads)
+                share = _pct(prev - s.reads, prev) if prev else "—"
+            width = (100.0 * s.reads / baseline) if baseline else 0
             rows.append([
                 f'<code>{_esc(s.stage)}</code>',
                 _fmt_int(s.reads), removed, share,
@@ -387,12 +395,14 @@ modes: {_esc(', '.join(ctx['modes']))}
     if ctx["gdpr_mechanisms"]:
         parts.append("<h2>GDPR scrub — contribution of each mechanism</h2>")
         rows = []
-        for mode, mech in ctx["gdpr_mechanisms"].items():
-            for name, pct in mech.items():
-                flag = _pill("no effect", "warn") if pct == 0 else _pill("active", "ok")
-                rows.append([_esc(mode), f"<code>{_esc(name)}</code>", f"{pct:.4f}%", flag])
-        parts.append(_table(["Head", "Mechanism", "% of input removed", "Status"],
-                            rows, aligns="  n "))
+        for mode, streams in ctx["gdpr_mechanisms"].items():
+            for stream, mech in streams.items():
+                for name, pct in mech.items():
+                    flag = _pill("no effect", "warn") if pct == 0 else _pill("active", "ok")
+                    rows.append([_esc(mode), _esc(stream),
+                                 f"<code>{_esc(name)}</code>", f"{pct:.4f}%", flag])
+        parts.append(_table(["Head", "Stream", "Mechanism", "% removed at this step", "Status"],
+                            rows, aligns="   n "))
         parts.append(
             '<div class="note">A mechanism marked <em>no effect</em> removed nothing. That '
             "has two very different readings: either the upstream heads had already taken the "

@@ -170,13 +170,19 @@ def run(cfg: CerberusConfig) -> dict:
             gdpr_outputs[f"{r.mode}_gdpr"] = paths
 
     elapsed = time.time() - t0
-    accounting.write(cfg.reports_dir)
 
     outputs: dict[str, Path | None] = {r.mode: r.primary_output for r in result_set}
     for mode, paths in gdpr_outputs.items():
         for key, p in paths.items():
             if p is not None and (cfg.dry_run or p.exists()):
                 outputs[f"{mode}.{key}"] = p
+
+    if not cfg.dry_run:
+        produced = {p for p in _all_produced(result_set, gdpr_outputs) if p is not None}
+        for w in _warn_on_stale_outputs(cfg, produced):
+            accounting.warn(w)
+
+    accounting.write(cfg.reports_dir)
 
     report_path = None
     try:
@@ -207,11 +213,55 @@ def _version() -> str:
     return __version__
 
 
+def _all_produced(
+    results: list[PipelineResult],
+    gdpr_outputs: dict[str, dict[str, Path | None]],
+) -> set[Path]:
+    out: set[Path] = set()
+    for r in results:
+        out |= {p for p in (r.paired_r1, r.paired_r2, r.singletons, r.long_reads)
+                if p is not None}
+    for paths in gdpr_outputs.values():
+        out |= {p for p in paths.values() if p is not None}
+    return out
+
+
+# Small QC artefacts worth keeping: they are what a reviewer actually reads,
+# and they live in _work/ alongside the multi-gigabyte intermediates.
+_KEEP_FROM_WORK = ("fastp.json", "fastp.html", "fastplong.json", "fastplong.html")
+_KEEP_SUFFIXES = (".flagstat.txt", ".stats.txt")
+
+
+def _preserve_qc_artifacts(cfg: CerberusConfig) -> int:
+    """Copy the small QC/stats files out of _work/ before it is deleted."""
+    work, dest = cfg.work_dir, cfg.reports_dir / "qc"
+    if not work.exists():
+        return 0
+    n = 0
+    for src in work.rglob("*"):
+        if not src.is_file():
+            continue
+        if src.name not in _KEEP_FROM_WORK and not src.name.endswith(_KEEP_SUFFIXES):
+            continue
+        rel = src.relative_to(work)
+        target = dest / "_".join(rel.parts)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, target)
+            n += 1
+        except OSError as e:
+            log.debug("Could not preserve %s: %s", src, e)
+    if n:
+        log.info("Kept %d QC/stats file(s) in %s", n, dest)
+    return n
+
+
 def _clean_work_dir(cfg: CerberusConfig) -> None:
     """Remove intermediates. They can reach many times the input size."""
     work = cfg.work_dir
     if not work.exists():
         return
+    _preserve_qc_artifacts(cfg)
     try:
         freed = sum(p.stat().st_size for p in work.rglob("*") if p.is_file())
         shutil.rmtree(work)
@@ -220,6 +270,22 @@ def _clean_work_dir(cfg: CerberusConfig) -> None:
                  work, freed / 1e9)
     except OSError as e:
         log.warning("Could not clean %s: %s", work, e)
+
+
+def _warn_on_stale_outputs(cfg: CerberusConfig, produced: set[Path]) -> list[str]:
+    """Flag deliverables from an earlier, wider run that this one did not refresh."""
+    stale = sorted(
+        p.name for p in cfg.out_dir.glob(f"{cfg.sample_id}.*")
+        if p.is_file() and p.suffix == ".gz" and p not in produced
+    )
+    if not stale:
+        return []
+    message = (
+        "These files in the output directory are left over from an earlier run and were "
+        f"NOT refreshed by this one: {', '.join(stale)}. Delete them or use a fresh "
+        "--out-dir before interpreting the results together."
+    )
+    return [message]
 
 
 def _required_pipeline_keys(cfg: CerberusConfig) -> list[str]:
